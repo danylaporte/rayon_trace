@@ -1,7 +1,27 @@
 use rayon::iter::plumbing::*;
 use rayon::iter::*;
-use std::cell::Cell;
-use tracing::span::{EnteredSpan, Id};
+use std::{any::Any, cell::Cell};
+use tracing::{
+    error,
+    span::{EnteredSpan, Id},
+    Span,
+};
+
+pub fn install_rayon_panic_handler() {
+    rayon::ThreadPoolBuilder::new()
+        .panic_handler(rayon_panic_handler)
+        .build_global()
+        .unwrap();
+}
+
+pub fn rayon_panic_handler(err: Box<dyn Any + Send + 'static>) {
+    let span = Span::current();
+
+    match err.downcast::<String>() {
+        Ok(s) => error!(parent: span, error = %s, "panic"),
+        Err(_) => error!(parent: span, error = "unknown panic error.", "panic"),
+    }
+}
 
 pub trait RayonTraceExt: ParallelIterator {
     fn trace(self, name: &'static str) -> Trace<Self> {
